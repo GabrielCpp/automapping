@@ -1,6 +1,5 @@
 from dataclasses import dataclass
-from automapping import Mapper, PartialMap, Rename, BiMorph, NaturalCopy, SubListMapping, SubMapping, Morph
-from automapping import ObjectDictDictUpdater, ObjectDictTypeUpdater
+from automapping import Mapper, PartialMap, Rename, BiMorph, NaturalCopy, SubListMapping, SubMapping, Morph, ObjectDictDictUpdater, ObjectDictTypeUpdater
 
 
 @dataclass
@@ -45,8 +44,8 @@ def test_given_nested_object_mapped_to_similar_object_should_match_all_common_pr
     mapper = Mapper()
     mapper.add_mapper(PartialMap(PersonDto, PersonDomain, [
         NaturalCopy(['age', 'name']),
-        SubListMapping('siblings', PersonDto, 'siblings', PersonDomain),
-        SubMapping('mother', PersonDto, 'mother', PersonDomain)
+        SubListMapping('siblings', 'siblings', PersonDto, PersonDomain),
+        SubMapping('mother',  'mother', PersonDto, PersonDomain)
     ]))
 
     actual_object = mapper.map(
@@ -80,8 +79,8 @@ def test_given_nested_object_mapped_to_similar_object_should_match_all_common_pr
     mapper = Mapper()
     mapper.add_mapper(PartialMap(PersonDto, PersonDomain, [
         NaturalCopy(['age', 'name']),
-        SubListMapping('siblings', PersonDto, 'siblings', PersonDomain),
-        SubMapping('mother', PersonDto, 'mother', PersonDomain)
+        SubListMapping('siblings', 'siblings', PersonDto, PersonDomain),
+        SubMapping('mother', 'mother', PersonDto, PersonDomain)
     ], backward_steps=[
         Morph('response_id', lambda source, updater: '12345')
     ]))

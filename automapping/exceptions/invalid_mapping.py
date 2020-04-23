@@ -1,0 +1,3 @@
+
+class InvalidMappingException(Exception):
+    pass

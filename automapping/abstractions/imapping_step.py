@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from typing import Type
 from .imapper import IMapper
 from .iupdater import IUpdater
 
@@ -7,6 +8,10 @@ class IMappingStep(ABC):
     @property
     @abstractmethod
     def supported_members(self):
+        pass
+
+    @abstractmethod
+    def configure(source_type: Type, destination_type: Type) -> None:
         pass
 
     @abstractmethod

@@ -1,44 +1,74 @@
 from typing import List
 from abc import ABC, abstractmethod
 from itertools import chain
-from .abstractions import IMappingStep, IReverseMappingStep, IMappingBuilder, IMapper, IUpdater
+from dataclasses import is_dataclass
+from inspect import isabstract, isclass
+from .abstractions import IMappingStep, IReverseMappingStep, IMappingBuilder, IMapper, IUpdater, ITypePatternMatching
 from .helpers import get_dataclass_field_type_by_name
-from .partial_mapper import PartialMap, NaturalCopy
+from .mapper_steps import Rename, SubMapping, SubListMapping
+from .partial_mapper import PartialMap
+from .updater import ObjectDictTypeUpdater, ObjectUpdater
+from .exceptions import MissingMappingException
 
 
-class ITypePatternMatching(ABC):
-    @abstractmethod
+class MatchExactType(ITypePatternMatching):
     def is_matching(self, from_type, to_type):
-        pass
-
-    @abstractmethod
-    def create(self, from_name, to_name, from_type, to_type):
-        pass
-
-
-class LambdaMatch(ITypePatternMatching):
-    def __init__(self, match, create_step):
-        self.match = match
-        self.create_step = create_step
-
-    def is_matching(self, from_type, to_type):
-        return self.match(from_type, to_type)
+        return (
+            from_type == to_type
+            and isclass(from_type)
+            and issubclass(from_type, (str, int, float, dict, list, bool, set))
+        )
 
     def create(self, from_name, to_name, from_type, to_type):
-        return self.create_step(from_name, to_name, from_type, to_type)
+        return Rename(from_name, from_name)
 
 
-class MissingMappingException(Exception):
-    pass
+class MatchSubMappableObject(ITypePatternMatching):
+    def is_matching(self, from_type, to_type):
+        return (
+            (is_dataclass(from_type) or isabstract(from_type))
+            and (is_dataclass(to_type) or isabstract(to_type))
+        )
+
+    def create(self, from_name, to_name, from_type, to_type):
+        return SubMapping(from_name, to_name, from_type, to_type)
+
+
+class MatchListType(ITypePatternMatching):
+    def is_matching(self, from_type, to_type):
+        if not hasattr(from_type, '__origin__') or not hasattr(to_type, '__origin__'):
+            return False
+
+        are_both_list = getattr(from_type, '__origin__') is list and getattr(
+            to_type, '__origin__') is list
+
+        if not are_both_list:
+            return False
+
+        from_list_element_type = getattr(from_type, '__args__')[0]
+
+        if is_dataclass(from_list_element_type):
+            return True
+
+        to_list_element_type = getattr(to_type, '__args__')[0]
+
+        return issubclass(from_list_element_type, (str, int, float, dict, list, bool, set)) and from_list_element_type is to_list_element_type
+
+    def create(self, from_name, to_name, from_type, to_type):
+        from_list_element_type = getattr(from_type, '__args__')[0]
+        to_list_element_type = getattr(to_type, '__args__')[0]
+
+        if is_dataclass(from_list_element_type):
+            return SubListMapping(from_name, to_name, from_list_element_type, to_list_element_type, list_element_mapping_strategy=SubListMapping.MapWithMapper(ObjectDictTypeUpdater))
+
+        return SubListMapping(from_name, to_name, from_list_element_type, to_list_element_type, list_element_mapping_strategy=SubListMapping.MapBytInitAsValue())
 
 
 class AutoMap(IMappingBuilder):
     type_mapper_patterns = [
-        LambdaMatch(
-            lambda from_type, to_type: from_type == to_type,
-            lambda from_name, to_name, from_type, to_type: NaturalCopy([
-                                                                       from_name])
-        )
+        MatchExactType(),
+        MatchListType(),
+        MatchSubMappableObject(),
     ]
 
     def __init__(
@@ -48,8 +78,7 @@ class AutoMap(IMappingBuilder):
         common_steps: List[IReverseMappingStep] = None,
         forward_steps: List[IMappingStep] = None,
         reverse_steps: List[IMappingStep] = None,
-        inspect_members=get_dataclass_field_type_by_name,
-        strict: bool = True
+        inspect_members=get_dataclass_field_type_by_name
     ):
         self.from_type = from_type
         self.to_type = to_type
@@ -57,7 +86,6 @@ class AutoMap(IMappingBuilder):
         self.forward_steps = forward_steps or []
         self.reverse_steps = reverse_steps or []
         self.inspect_members = inspect_members
-        self.strict = strict
 
     def build(self, mapper):
         from_members = self.inspect_members(self.from_type)
