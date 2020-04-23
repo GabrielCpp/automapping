@@ -1,8 +1,8 @@
-Python 3.7 helper tool to work with mapping of dataclass.
+Python 3.7 helper tool to work with mapping of dataclasses.
 
 
 
-It allow automapping dataclass attributes
+It allow automapping a dataclass attributes
 
 ```python
 from automapping import Mapper, Rename
